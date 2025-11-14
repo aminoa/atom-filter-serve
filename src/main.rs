@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use atom_syndication::Feed as AtomFeed;
+use atom_syndication::{Feed as AtomFeed, FeedBuilder, Text};
 use axum::{
     extract::Query,
     http::StatusCode,
@@ -9,7 +9,6 @@ use axum::{
 };
 use chrono;
 use clap::Parser;
-use rss::{Channel, Item};
 use std::collections::HashMap;
 use std::env;
 use tokio::time::Duration;
@@ -83,10 +82,10 @@ async fn main() -> Result<()> {
     };
     
     if args.serve_once {
-        // Just fetch and print the filtered RSS once
+        // Just fetch and print the filtered Atom once
         match fetch_and_filter_feed(&config).await {
-            Ok(rss_content) => {
-                println!("{}", rss_content);
+            Ok(atom_content) => {
+                println!("{}", atom_content);
                 return Ok(());
             }
             Err(e) => {
@@ -104,14 +103,14 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         .route("/", get(serve_homepage))
-        .route("/rss", get(serve_rss_feed))
-        .route("/feed.xml", get(serve_rss_feed))
+        .route("/atom", get(serve_atom_feed))
+        .route("/feed.xml", get(serve_atom_feed))
         .layer(CorsLayer::permissive())
         .with_state(app_state);
 
     let addr = format!("0.0.0.0:{}", args.port);
     info!("Starting server on {}", addr);
-    info!("RSS feed available at: http://localhost:{}/rss", args.port);
+    info!("Atom feed available at: http://localhost:{}/atom", args.port);
     info!("Monitoring: {}", config.atom_feed_url);
     info!("Filter word: '{}'", config.filter_word);
 
@@ -143,8 +142,8 @@ async fn serve_homepage(
             <p>This service filters Atom feed entries to show only those containing the word <strong>"{}"</strong>.</p>
             
             <div class="feed-link">
-                <h3>RSS Feed URL:</h3>
-                <code>/rss</code> or <code>/feed.xml</code>
+                <h3>Atom Feed URL:</h3>
+                <code>/atom</code> or <code>/feed.xml</code>
             </div>
             
             <div class="config">
@@ -154,7 +153,7 @@ async fn serve_homepage(
                 <p><strong>Feed Title:</strong> {}</p>
             </div>
             
-            <p>Add this RSS feed to your reader to get notified when new entries match your filter!</p>
+            <p>Add this Atom feed to your reader to get notified when new entries match your filter!</p>
         </div>
     </body>
     </html>
@@ -168,7 +167,7 @@ async fn serve_homepage(
     Html(html)
 }
 
-async fn serve_rss_feed(
+async fn serve_atom_feed(
     Query(params): Query<HashMap<String, String>>,
     axum::extract::State(state): axum::extract::State<AppState>,
 ) -> Response {
@@ -179,10 +178,10 @@ async fn serve_rss_feed(
         let cached = state.cached_feed.read().await;
         if let Some((content, timestamp)) = cached.as_ref() {
             if timestamp.elapsed() < state.cache_duration {
-                info!("Serving cached RSS feed");
+                info!("Serving cached Atom feed");
                 return (
                     StatusCode::OK,
-                    [("Content-Type", "application/rss+xml; charset=utf-8")],
+                    [("Content-Type", "application/atom+xml; charset=utf-8")],
                     content.clone(),
                 ).into_response();
             }
@@ -190,17 +189,17 @@ async fn serve_rss_feed(
     }
 
     // Fetch fresh content
-    info!("Fetching fresh RSS feed");
+    info!("Fetching fresh Atom feed");
     match fetch_and_filter_feed(&state.config).await {
-        Ok(rss_content) => {
+        Ok(atom_content) => {
             // Update cache
             let mut cached = state.cached_feed.write().await;
-            *cached = Some((rss_content.clone(), std::time::Instant::now()));
+            *cached = Some((atom_content.clone(), std::time::Instant::now()));
             
             (
                 StatusCode::OK,
-                [("Content-Type", "application/rss+xml; charset=utf-8")],
-                rss_content,
+                [("Content-Type", "application/atom+xml; charset=utf-8")],
+                atom_content,
             ).into_response()
         }
         Err(e) => {
@@ -247,59 +246,32 @@ async fn fetch_and_filter_feed(config: &AppConfig) -> Result<String> {
 
     info!("Filtered to {} matching entries", filtered_entries.len());
 
-    // Convert to RSS
-    let mut channel = Channel::default();
-    channel.set_title(&config.feed_title);
-    
-    // Extract feed link from URL (remove .atom extension if present)
-    let feed_link = config.atom_feed_url
-        .strip_suffix(".atom")
-        .or_else(|| config.atom_feed_url.strip_suffix("/.atom"))
-        .unwrap_or(&config.atom_feed_url)
-        .to_string();
-    
-    channel.set_link(&feed_link);
-    channel.set_description(&config.feed_description);
-    channel.set_language(Some("en-us".to_string()));
-    channel.set_generator(Some("Atom Feed Filter".to_string()));
-    channel.set_last_build_date(Some(chrono::Utc::now().to_rfc2822()));
-
-    let mut items = Vec::new();
-    for entry in filtered_entries {
-        let mut item = Item::default();
-        
-        item.set_title(Some(entry.title().as_str().to_string()));
-        
-        if let Some(link) = entry.links().first() {
-            item.set_link(Some(link.href().to_string()));
-            item.set_guid(Some(rss::Guid {
-                value: link.href().to_string(),
-                permalink: true,
-            }));
-        }
-        
-        if let Some(summary) = entry.summary() {
-            item.set_description(Some(summary.as_str().to_string()));
-        }
-        
-        // Convert atom date to RSS date format
-        let date = entry.updated().format("%a, %d %b %Y %H:%M:%S %z").to_string();
-        item.set_pub_date(Some(date));
-        
-        if let Some(author) = entry.authors().first() {
-            item.set_author(Some(author.name().to_string()));
-        }
-        
-        items.push(item);
-    }
-    
-    channel.set_items(items);
+    // Create new Atom feed with filtered entries
+    let filtered_feed = FeedBuilder::default()
+        .title(Text::plain(&config.feed_title))
+        .id(feed.id())
+        .updated(chrono::Utc::now())
+        .authors(feed.authors().to_vec())
+        .links(feed.links().to_vec())
+        .subtitle(Some(Text::plain(&config.feed_description)))
+        .generator(Some(atom_syndication::Generator {
+            value: "Atom Feed Filter".to_string(),
+            uri: None,
+            version: Some("1.0".to_string()),
+        }))
+        .entries(
+            filtered_entries
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>()
+        )
+        .build();
     
     // Convert to XML string
-    let mut rss_output = Vec::new();
-    channel.write_to(&mut rss_output)?;
+    let mut atom_output = Vec::new();
+    filtered_feed.write_to(&mut atom_output)?;
     
-    Ok(String::from_utf8(rss_output)?)
+    Ok(String::from_utf8(atom_output)?)
 }
 
 #[cfg(test)]

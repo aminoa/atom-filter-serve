@@ -1,16 +1,16 @@
-# RSS Filter Serve
+# Atom Filter Serve
 
-A Rust application that filters any RSS feed to show only entries containing specific keywords. 
+A Rust application that filters an [Atom](https://en.wikipedia.org/wiki/Atom_(web_standard)) feed to show only entries containing specific keywords and then re-serves that filtered feed as an Atom feed.
 
 ## Motivation
 
-I wrote this to get an RSS feed for Shonumi's blog using the commits in the repo. However, to only get the new articles, I whipped up a quick Rust app using opencode. This should be extendable to any RSS feed.
+I wrote this to get an Atom feed for Shonumi's blog using the commits in the repo. However, to only get the new articles, I whipped up a quick Rust app using opencode.
 
 ## Quick Start
 
 1. **Configure**: Set `ATOM_FEED_URL` in `.env` file or use `--url` option
 2. **Run**: `cargo run`
-3. **Access**: http://localhost:3000/rss
+3. **Access**: http://localhost:3000/atom
 
 ## Configuration
 
@@ -19,7 +19,7 @@ I wrote this to get an RSS feed for Shonumi's blog using the commits in the repo
 # Required: Any Atom feed URL
 ATOM_FEED_URL=https://example.com/feed.atom
 
-# Optional: RSS feed metadata  
+# Optional: Atom feed metadata
 FEED_TITLE=My Filtered Feed
 FEED_DESCRIPTION=Feed entries containing specific keywords
 ```
@@ -41,7 +41,7 @@ cargo run -- --url "https://github.com/torvalds/linux/commits/master/.atom" --fi
 # GitLab commits containing "feature"
 cargo run -- --url "https://gitlab.com/user/repo/-/commits/main?format=atom" --filter-word "feature"
 
-# Any blog's Atom feed containing "tutorial" 
+# Any blog's Atom feed containing "tutorial"
 cargo run -- --url "https://blog.example.com/feed.atom" --filter-word "tutorial"
 
 # Default: shonumi articles (configured in .env)
