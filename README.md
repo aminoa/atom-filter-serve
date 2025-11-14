@@ -1,6 +1,6 @@
-# Atom Filter Serve
+# Atom/RSS Filter Serve
 
-A Rust application that filters an [Atom](https://en.wikipedia.org/wiki/Atom_(web_standard)) feed to show only entries containing specific keywords and then re-serves that filtered feed as an Atom feed.
+A Rust application that filters an [Atom](https://en.wikipedia.org/wiki/Atom_(web_standard)) feed to show only entries containing specific keywords and then re-serves that filtered feed as both Atom and RSS feeds.
 
 ## Motivation
 
@@ -10,7 +10,9 @@ I wrote this to get an Atom feed for Shonumi's blog using the commits in the rep
 
 1. **Configure**: Set `ATOM_FEED_URL` in `.env` file or use `--url` option
 2. **Run**: `cargo run`
-3. **Access**: http://localhost:3000/atom
+3. **Access**: 
+   - Atom: http://localhost:3000/atom
+   - RSS: http://localhost:3000/rss
 
 ## Configuration
 
@@ -23,6 +25,12 @@ ATOM_FEED_URL=https://example.com/feed.atom
 FEED_TITLE=My Filtered Feed
 FEED_DESCRIPTION=Feed entries containing specific keywords
 ```
+
+## Endpoints
+
+- `/` - Homepage with feed information
+- `/atom` or `/feed.xml` - Filtered Atom feed
+- `/rss` or `/rss.xml` - Filtered RSS feed
 
 ### CLI Options
 ```bash

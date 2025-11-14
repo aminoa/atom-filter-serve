@@ -99,6 +99,7 @@ dependencies = [
  "dotenvy",
  "regex",
  "reqwest",
+ "rss",
  "tempfile",
  "tokio",
  "tower 0.4.13",
@@ -1193,6 +1194,18 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "winreg",
+]
+
+[[package]]
+name = "rss"
+version = "2.0.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2107738f003660f0a91f56fd3e3bd3ab5d918b2ddaf1e1ec2136fb1c46f71bf"
+dependencies = [
+ "atom_syndication",
+ "derive_builder",
+ "never",
+ "quick-xml",
 ]
 
 [[package]]
